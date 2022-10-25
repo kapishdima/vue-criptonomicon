@@ -34,7 +34,7 @@
             <div class="mt-1 relative rounded-md shadow-md">
               <input
                 @keydown.enter="addTicker"
-                @input="search"
+                @input="searchSuggested"
                 v-model="ticker"
                 type="text"
                 name="wallet"
@@ -43,10 +43,7 @@
                 placeholder="Например DOGE"
               />
             </div>
-            <div
-              v-if="suggestedCoins.length"
-              class="flex bg-white shadow-md p-1 rounded-md flex-wrap"
-            >
+            <div v-if="showSuggestedCoins" class="flex bg-white shadow-md p-1 rounded-md flex-wrap">
               <span
                 v-for="coin in suggestedCoins"
                 :key="coin"
@@ -83,68 +80,110 @@
         </button>
       </section>
 
-      <template v-if="tickers.length">
-        <hr class="w-full border-t border-gray-600 my-4" />
-        <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
-          <div
-            v-for="t in tickers"
-            :key="t.name"
-            class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer"
+      <div class="flex items-end">
+        <div class="flex flex-col w-1/3">
+          <label for="filter" class="block text-sm font-medium text-gray-700">Поиск</label>
+          <input
+            v-model="filter"
+            id="filter"
+            type="text"
+            class="block w-full pr-10 border-gray-300 text-gray-900 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm rounded-md"
+          />
+        </div>
+        <div class="flex">
+          <button
+            @click="prevPage"
+            type="button"
+            :disabled="!hasPrevPage"
+            :class="{
+              'bg-gray-400': !hasPrevPage,
+              'bg-gray-600': hasPrevPage,
+              'hover:bg-gray-700': hasPrevPage,
+              'hover:bg-gray-400': !hasPrevPage,
+            }"
+            class="mx-1 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
           >
-            <div class="px-4 py-5 sm:p-6 text-center">
-              <dt class="text-sm font-medium text-gray-500 truncate">{{ t.name }} - USD</dt>
-              <dd v-if="t.price !== '-'" class="mt-1 text-3xl font-semibold text-gray-900">
-                {{ t.price }}
-              </dd>
-              <dd v-if="t.price === '-'" class="mt-1 text-3xl font-semibold text-gray-900">
-                <div class="flex justify-center mt-4">
-                  <svg
-                    class="animate-spin h-4 w-4 text-gray-900"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      class="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      stroke-width="4"
-                    ></circle>
-                    <path
-                      class="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                </div>
-              </dd>
-            </div>
-            <div class="w-full border-t border-gray-200"></div>
-            <button
-              @click.stop="deleteTicker(t)"
-              class="flex items-center justify-center font-medium w-full bg-gray-100 px-4 py-4 sm:px-6 text-md text-gray-500 hover:text-gray-600 hover:bg-gray-200 hover:opacity-20 transition-all focus:outline-none"
-            >
-              <svg
-                class="h-5 w-5"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="#718096"
-                aria-hidden="true"
-              >
-                <path
-                  fill-rule="evenodd"
-                  d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                  clip-rule="evenodd"
-                ></path>
-              </svg>
-              Удалить
-            </button>
+            Назад
+          </button>
+          <button
+            @click="nextPage"
+            type="button"
+            :disabled="!hasNextPage"
+            :class="{
+              'bg-gray-400': !hasNextPage,
+              'bg-gray-600': hasNextPage,
+              'hover:bg-gray-700': hasNextPage,
+              'hover:bg-gray-400': !hasNextPage,
+            }"
+            class="mx-1 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+          >
+            Вперед
+          </button>
+        </div>
+      </div>
+      <hr class="w-full border-t border-gray-600 my-4" />
+      <div v-if="!paginetedTickers.length" class="flex justify-center items-center">
+        <h2 class="block text-lg font-medium text-gray-700">Нет тикеров</h2>
+      </div>
+      <dl v-if="showTickers" class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
+        <div
+          v-for="t in paginetedTickers"
+          :key="t.name"
+          class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer"
+        >
+          <div class="px-4 py-5 sm:p-6 text-center">
+            <dt class="text-sm font-medium text-gray-500 truncate">{{ t.name }} - USD</dt>
+            <dd v-if="t.price !== '-'" class="mt-1 text-3xl font-semibold text-gray-900">
+              {{ t.price }}
+            </dd>
+            <dd v-if="t.price === '-'" class="mt-1 text-3xl font-semibold text-gray-900">
+              <div class="flex justify-center mt-4">
+                <svg
+                  class="animate-spin h-4 w-4 text-gray-900"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="4"
+                  ></circle>
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+              </div>
+            </dd>
           </div>
-        </dl>
-        <hr class="w-full border-t border-gray-600 my-4" />
-      </template>
+          <div class="w-full border-t border-gray-200"></div>
+          <button
+            @click.stop="deleteTicker(t)"
+            class="flex items-center justify-center font-medium w-full bg-gray-100 px-4 py-4 sm:px-6 text-md text-gray-500 hover:text-gray-600 hover:bg-gray-200 hover:opacity-20 transition-all focus:outline-none"
+          >
+            <svg
+              class="h-5 w-5"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="#718096"
+              aria-hidden="true"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                clip-rule="evenodd"
+              ></path>
+            </svg>
+            Удалить
+          </button>
+        </div>
+      </dl>
+      <hr class="w-full border-t border-gray-600 my-4" />
       <section class="relative">
         <h3 class="text-lg leading-6 font-medium text-gray-900 my-8">VUE - USD</h3>
         <div class="flex items-end border-gray-600 border-b border-l h-64">
@@ -198,19 +237,89 @@ export default {
       coins: [],
       suggestedCoins: [],
       errors: [],
+
+      page: 1,
+
+      filter: '',
     };
   },
 
-  mounted: async function () {
+  created: async function () {
     this.isLoading = true;
     const coins = await getCoins();
 
     this.coins = coins;
     this.isLoading = false;
+
+    this.tickers = JSON.parse(localStorage.getItem('tickers')) || [];
+
+    const params = Object.fromEntries(new URL(window.location).searchParams.entries());
+    this.filter = params['filter'];
+    this.page = parseInt(params['page']);
+  },
+
+  computed: {
+    showTickers() {
+      return this.paginetedTickers.length > 0;
+    },
+    showSuggestedCoins() {
+      return this.suggestedCoins.length;
+    },
+    startIndex() {
+      return (this.page - 1) * 6;
+    },
+    endIndex() {
+      return this.page * 6;
+    },
+    paginetedTickers() {
+      return this.filteredTickers.slice(this.startIndex, this.endIndex);
+    },
+    filteredTickers() {
+      if (!this.filter.length) {
+        return this.tickers;
+      }
+      return this.tickers.filter((ticker) => ticker.name.toLowerCase().includes(this.filter));
+    },
+    hasNextPage() {
+      return this.filteredTickers.length > 0 && this.endIndex < this.filteredTickers.length;
+    },
+    hasPrevPage() {
+      return this.page > 1;
+    },
+    pageFiltersOptions() {
+      return {
+        filter: this.filter,
+        page: this.page,
+      };
+    },
+  },
+
+  watch: {
+    tickers() {
+      localStorage.setItem('tickers', JSON.stringify(this.tickers));
+    },
+    pageFiltersOptions() {
+      const url = new URL(window.location);
+      url.searchParams.set('filter', this.filter);
+      url.searchParams.set('page', this.page);
+
+      window.history.pushState({}, '', url);
+    },
+    filter() {
+      this.page = 1;
+    },
   },
 
   methods: {
-    search() {
+    nextPage() {
+      this.page += 1;
+    },
+
+    prevPage() {
+      this.page -= 1;
+    },
+
+    searchSuggested() {
       this.suggestedCoins = searchCoins(this.ticker, this.coins);
     },
     addTicker(suggested) {
